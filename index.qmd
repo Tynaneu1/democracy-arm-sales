@@ -1,0 +1,75 @@
+---
+title: "Arms Sales and Democracy"
+author: "Tynaneu1"
+format:
+ html:
+   embed-resources: true
+   code-fold: true
+   toc: true
+---
+
+## Import libraries 
+
+```{r}
+library(tidyverse)   # reading, cleaning, ggplot2 charts
+library(countrycode) # matches country names and codes across datasets
+library(janitor)     # clean_names() tidies messy column names
+library(scales)      # nicer axis labels on charts
+library(knitr)       # kable() for neat tables
+
+```
+
+## Import data
+
+```{r}
+list.files("data/raw")
+df <- read_csv("data/raw/v-dem_coarm_data.csv") |> clean_names()
+glimpse(df)
+
+```
+
+quick summary check
+
+```{r}
+summary(df)
+df |> count(year)
+df |> filter(is.na(eu_coarm_arms_exports_eur)) |> count(country_name)
+
+```
+
+Top recipients
+
+```{r}
+df |> group_by(country_name) |>
+  summarise(total = sum(eu_coarm_arms_exports_eur, na.rm = TRUE)) |>
+  slice_max(total, n = 15) |>
+  ggplot(aes(total / 1e9, reorder(country_name, total))) +
+  geom_col() + labs(x = "EU arms exports, bn EUR", y = NULL)
+
+```
+
+```{r}
+dir.create("output", showWarnings = FALSE)
+
+p_top <- df |> group_by(country_name) |>
+  summarise(total = sum(eu_coarm_arms_exports_eur, na.rm = TRUE)) |>
+  slice_max(total, n = 15) |>
+  ggplot(aes(total / 1e9, reorder(country_name, total))) +
+  geom_col() + labs(x = "EU arms exports, bn EUR", y = NULL)
+
+ggsave("output/top_recipients.png", p_top, width = 8, height = 6, dpi = 300, bg = "white")
+p_top
+```
+
+exports vs democracy
+
+```{r}
+df |> group_by(country_name) |>
+  summarise(exports = mean(eu_coarm_arms_exports_eur, na.rm = TRUE),
+            democracy = mean(v2x_libdem, na.rm = TRUE)) |>
+  ggplot(aes(democracy, exports + 1)) +
+  geom_point(alpha = .6) + scale_y_log10(labels = label_comma()) +
+  geom_smooth(method = "lm") +
+  labs(x = "Liberal democracy index", y = "Avg yearly exports, EUR (log)")
+
+```
